@@ -1,0 +1,21 @@
+# HackaChain - Project root gitignore
+node_modules/
+dist/
+.env
+*.log
+.DS_Store
+Thumbs.db
+.vite/
+
+# Frontend specifics
+frontend/node_modules/
+frontend/dist/
+frontend/.env
+frontend/.env.local
+frontend/.env.*.local
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
