@@ -28,6 +28,13 @@ function getReadClient() {
 }
 
 function getWriteClient(account) {
+  if (typeof account === 'string') {
+    return createClient({
+      chain: studionet,
+      account,
+      provider: window.ethereum,
+    });
+  }
   return createClient({ chain: studionet, account });
 }
 
@@ -64,11 +71,8 @@ export function useHackaChain() {
         const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
         const addr = accounts[0];
 
-        // Build a GenLayer account from the MetaMask provider
-        // genlayer-js supports EIP-1193 providers via createAccount
-        const acct = createAccount({ privateKey: undefined, address: addr });
         setAccount(addr);
-        setGlAccount(acct);
+        setGlAccount(addr);
         toast('success', `Wallet connected: ${addr.slice(0,8)}…`);
       } else {
         // Fallback: generate a fresh ephemeral account for demo
