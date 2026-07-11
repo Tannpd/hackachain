@@ -71,6 +71,10 @@ export function useHackaChain() {
         const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
         const addr = accounts[0];
 
+        // Ensure wallet is switched to the correct GenLayer network
+        const client = getWriteClient(addr);
+        await client.connect();
+
         setAccount(addr);
         setGlAccount(addr);
         toast('success', `Wallet connected: ${addr.slice(0,8)}…`);
@@ -101,6 +105,12 @@ export function useHackaChain() {
   async function writeContract(functionName, args = []) {
     if (!glAccount) throw new Error('Wallet not connected.');
     const client = getWriteClient(glAccount);
+    
+    // Ensure wallet is on the correct GenLayer network before signing
+    if (typeof glAccount === 'string') {
+      await client.connect();
+    }
+
     const hash = await client.writeContract({
       address: CONTRACT_ADDRESS,
       functionName,
