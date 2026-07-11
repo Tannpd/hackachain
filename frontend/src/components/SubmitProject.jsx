@@ -14,7 +14,8 @@ import {
   CheckIcon, 
   CodeIcon, 
   LockIcon, 
-  LogoIcon 
+  LogoIcon,
+  WalletIcon
 } from './Icons';
 
 export default function SubmitProject({ useHook }) {
