@@ -117,10 +117,10 @@ export function useHackaChain() {
       args,
       value: value,
     });
-    // Wait for FINALIZED status (GenLayer consensus)
+    // Wait for ACCEPTED status (GenLayer consensus reached)
     const receipt = await client.waitForTransactionReceipt({
       hash,
-      status: TransactionStatus.FINALIZED,
+      status: TransactionStatus.ACCEPTED,
     });
     return { hash, receipt };
   }
