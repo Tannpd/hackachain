@@ -160,14 +160,24 @@ export default function SubmitProject({ useHook }) {
                     <label className="form-label" htmlFor="proj-name">Project Name</label>
                     <input id="proj-name" className="form-input" required
                       placeholder="e.g. DeFi Oracle Aggregator"
-                      value={projName} onChange={e => setProjName(e.target.value)} />
+                      value={projName} onChange={e => setProjName(e.target.value)}
+                      onInvalid={e => e.target.setCustomValidity('Please fill out this field.')}
+                      onInput={e => e.target.setCustomValidity('')} />
                   </div>
 
                   <div className="form-group">
                     <label className="form-label" htmlFor="proj-url">Project URL</label>
                     <input id="proj-url" className="form-input mono" type="url" required
                       placeholder="https://github.com/your-repo/project"
-                      value={projUrl} onChange={e => setProjUrl(e.target.value)} />
+                      value={projUrl} onChange={e => setProjUrl(e.target.value)}
+                      onInvalid={e => {
+                        if (e.target.value === '') {
+                          e.target.setCustomValidity('Please fill out this field.');
+                        } else {
+                          e.target.setCustomValidity('Please enter a valid URL.');
+                        }
+                      }}
+                      onInput={e => e.target.setCustomValidity('')} />
                     <p className="form-hint">
                       💡 Use a public GitHub repo, Vercel demo, or Devpost URL.
                       The AI will scrape this page to generate your scorecard.
@@ -279,27 +289,41 @@ export default function SubmitProject({ useHook }) {
                     <label className="form-label" htmlFor="org-name">Hackathon Name</label>
                     <input id="org-name" className="form-input" required
                       placeholder="ETHGlobal Bangkok 2025"
-                      value={orgName} onChange={e => setOrgName(e.target.value)} />
+                      value={orgName} onChange={e => setOrgName(e.target.value)}
+                      onInvalid={e => e.target.setCustomValidity('Please fill out this field.')}
+                      onInput={e => e.target.setCustomValidity('')} />
                   </div>
 
                   <div className="form-group">
                     <label className="form-label" htmlFor="org-prize">Prize Pool (USDC micro-units)</label>
                     <input id="org-prize" className="form-input mono" type="number" min="1" required
                       placeholder="1000000 = 1 USDC"
-                      value={orgPrize} onChange={e => setOrgPrize(e.target.value)} />
+                      value={orgPrize} onChange={e => setOrgPrize(e.target.value)}
+                      onInvalid={e => {
+                        if (e.target.value === '') {
+                          e.target.setCustomValidity('Please fill out this field.');
+                        } else {
+                          e.target.setCustomValidity('Please enter a valid prize pool amount.');
+                        }
+                      }}
+                      onInput={e => e.target.setCustomValidity('')} />
                     <p className="form-hint">💡 1 USDC = 1,000,000 micro-units (6 decimals)</p>
                   </div>
 
                   <div className="form-group">
                     <label className="form-label" htmlFor="org-sub">Submission Deadline</label>
                     <input id="org-sub" className="form-input" type="datetime-local" required
-                      value={orgSub} onChange={e => setOrgSub(e.target.value)} />
+                      value={orgSub} onChange={e => setOrgSub(e.target.value)}
+                      onInvalid={e => e.target.setCustomValidity('Please specify the submission deadline.')}
+                      onInput={e => e.target.setCustomValidity('')} />
                   </div>
 
                   <div className="form-group">
                     <label className="form-label" htmlFor="org-judge">Judging Deadline</label>
                     <input id="org-judge" className="form-input" type="datetime-local" required
-                      value={orgJudge} onChange={e => setOrgJudge(e.target.value)} />
+                      value={orgJudge} onChange={e => setOrgJudge(e.target.value)}
+                      onInvalid={e => e.target.setCustomValidity('Please specify the judging deadline.')}
+                      onInput={e => e.target.setCustomValidity('')} />
                   </div>
 
                   <div style={{ display:'flex', gap:'0.75rem', marginTop:'1.5rem' }}>
