@@ -34,6 +34,7 @@
 
 from genlayer import *   # Rule 13: ALWAYS use this form. Never import genlayer as gl.
 import json
+import time
 
 
 # ---------------------------------------------------------------------------
@@ -120,7 +121,7 @@ class Contract(gl.Contract):   # Rule 6: class name = Contract, extends gl.Contr
         NOTE: u256/u64/i32 fields accept plain Python int literals.
         """
         self.hackathon_name      = ""
-        self.organizer           = gl.message.sender_account
+        self.organizer           = gl.message.sender_address
         self.prize_pool_wei      = 0
         self.submission_deadline = 0
         self.judging_deadline    = 0
@@ -132,6 +133,7 @@ class Contract(gl.Contract):   # Rule 6: class name = Contract, extends gl.Contr
     # ═══════════════════════════════════════════════════════════════════
     # ORGANIZER: HACKATHON SETUP
     # ═══════════════════════════════════════════════════════════════════
+    @gl.public.write.payable
     def setup_hackathon(
         self,
         name:                str,
@@ -143,11 +145,15 @@ class Contract(gl.Contract):   # Rule 6: class name = Contract, extends gl.Contr
         Initialise the hackathon parameters. Can only be called once by the organizer.
         prize_pool_wei is in the smallest token unit (e.g., 1_000_000 = 1 USDC).
         """
-        if gl.message.sender_account != self.organizer:
+        if gl.message.sender_address != self.organizer:
             raise UserError("Only the organizer can configure this hackathon.")
 
         if self.is_setup:
             raise UserError("Hackathon is already configured.")
+
+        # Require real token escrow
+        if gl.message.value != u256(prize_pool_wei):
+            raise UserError("Sent transaction value does not match the configured prize pool.")
 
         if prize_pool_wei <= 0:
             raise UserError("Prize pool must be greater than zero.")
@@ -156,7 +162,7 @@ class Contract(gl.Contract):   # Rule 6: class name = Contract, extends gl.Contr
             raise UserError("Judging deadline must be after submission deadline.")
 
         self.hackathon_name       = name
-        self.prize_pool_wei       = prize_pool_wei      # auto-coerced to u256
+        self.prize_pool_wei       = gl.message.value    # real escrowed pool
         self.submission_deadline  = submission_deadline  # auto-coerced to u64
         self.judging_deadline     = judging_deadline     # auto-coerced to u64
         self.is_setup             = True
@@ -165,6 +171,7 @@ class Contract(gl.Contract):   # Rule 6: class name = Contract, extends gl.Contr
     # ═══════════════════════════════════════════════════════════════════
     # PARTICIPANT: SUBMIT PROJECT
     # ═══════════════════════════════════════════════════════════════════
+    @gl.public.write
     def submit_project(
         self,
         project_name: str,
@@ -180,6 +187,10 @@ class Contract(gl.Contract):   # Rule 6: class name = Contract, extends gl.Contr
         if self.is_finalized:
             raise UserError("Hackathon is already finalized; no more submissions.")
 
+        # Enforce submission deadline
+        if int(time.time()) >= int(self.submission_deadline):
+            raise UserError("Submission deadline has passed.")
+
         if len(project_url) == 0:
             raise UserError("Project URL cannot be empty.")
 
@@ -191,7 +202,7 @@ class Contract(gl.Contract):   # Rule 6: class name = Contract, extends gl.Contr
             raise UserError("Maximum submission limit reached.")
 
         pid = self.submission_count          # u64
-        submitter = str(gl.message.sender_account)
+        submitter = str(gl.message.sender_address)
 
         self.submission_urls[pid]   = project_url
         self.submission_owners[pid] = submitter
@@ -212,6 +223,7 @@ class Contract(gl.Contract):   # Rule 6: class name = Contract, extends gl.Contr
     # ═══════════════════════════════════════════════════════════════════
     # ORGANIZER: AI JUDGING  ← THE CORE NON-DETERMINISTIC LOGIC
     # ═══════════════════════════════════════════════════════════════════
+    @gl.public.write
     def judge_project(self, pid: int) -> None:
         """
         Uses GenLayer's non-deterministic oracle to:
@@ -237,7 +249,11 @@ class Contract(gl.Contract):   # Rule 6: class name = Contract, extends gl.Contr
         if self.is_finalized:
             raise UserError("Hackathon is finalized; judging is closed.")
 
-        if gl.message.sender_account != self.organizer:
+        # Enforce judging deadline
+        if int(time.time()) >= int(self.judging_deadline):
+            raise UserError("Judging deadline has passed.")
+
+        if gl.message.sender_address != self.organizer:
             raise UserError("Only the organizer can trigger AI judging.")
 
         # pid param is plain int (method param); cast submission_count for comparison
@@ -310,7 +326,7 @@ You are evaluating the hackathon project: "{project_name}"
 Evaluate this project strictly on the following three axes.
 Each axis is scored from 0 to 30 (integer only, no decimals).
 
-SCORING RUBRIC:
+SCORING rubric:
 1. tech_score (0-30): Assesses technological innovation, code quality signals,
    architecture choices, use of AI/Web3/novel APIs, and overall engineering depth.
    Look for: GitHub links, code snippets, tech stack mentions, architecture diagrams.
@@ -380,7 +396,7 @@ OUTPUT FORMAT (respond ONLY with this exact JSON, no markdown, no extra text):
 
             CONSENSUS RULE:
               Accept if |leader_total − validator_total| ≤ SCORE_VARIANCE_TOLERANCE
-              AND no single axis diverges by more than 10 pts.
+              AND no single axis diverges by more than 3 pts.
             """
             # ── Step A: Parse the leader's claimed result ──────────────
             try:
@@ -438,18 +454,18 @@ OUTPUT FORMAT (respond ONLY with this exact JSON, no markdown, no extra text):
             score_delta = abs(leader_total - val_total)
 
             # ── Step E: Consensus decision ─────────────────────────────
+            # Per-axis guard: reject if any axis diverges by more than 3 pts
+            # (tightened to prevent score-swapping attacks and ensure scorecard agreement)
+            if abs(leader_tech - val_tech) > 3:
+                return False
+            if abs(leader_ui - val_ui) > 3:
+                return False
+            if abs(leader_comp - val_comp) > 3:
+                return False
+
             # Accept if total difference ≤ tolerance
             if score_delta <= SCORE_VARIANCE_TOLERANCE:
                 return True   # CONSENSUS REACHED
-
-            # Per-axis guard: reject if any axis diverges > 10 pts
-            # (prevents score-swapping attacks: tech=30,ui=0 vs tech=0,ui=30)
-            if abs(leader_tech - val_tech) > 10:
-                return False
-            if abs(leader_ui - val_ui) > 10:
-                return False
-            if abs(leader_comp - val_comp) > 10:
-                return False
 
             return False   # CONSENSUS FAILED
 
@@ -482,6 +498,7 @@ OUTPUT FORMAT (respond ONLY with this exact JSON, no markdown, no extra text):
     # ═══════════════════════════════════════════════════════════════════
     # ORGANIZER: FINALIZE — CALCULATE & LOCK PRIZE DISTRIBUTION
     # ═══════════════════════════════════════════════════════════════════
+    @gl.public.write
     def finalize_hackathon(self) -> None:
         """
         After all projects are judged, call this to:
@@ -491,7 +508,7 @@ OUTPUT FORMAT (respond ONLY with this exact JSON, no markdown, no extra text):
           4. Set is_finalized = True.
         Only the organizer can call this.
         """
-        if gl.message.sender_account != self.organizer:
+        if gl.message.sender_address != self.organizer:
             raise UserError("Only the organizer can finalize the hackathon.")
 
         if self.is_finalized:
@@ -499,6 +516,10 @@ OUTPUT FORMAT (respond ONLY with this exact JSON, no markdown, no extra text):
 
         if not self.is_setup:
             raise UserError("Hackathon has not been configured.")
+
+        # Enforce that finalization can only happen after the submission deadline
+        if int(time.time()) < int(self.submission_deadline):
+            raise UserError("Cannot finalize the hackathon before the submission deadline.")
 
         # Build a sortable plain Python list from TreeMap data.
         # Cast u64 → int for range(); cast i32 scores → int for sorting.
@@ -542,6 +563,7 @@ OUTPUT FORMAT (respond ONLY with this exact JSON, no markdown, no extra text):
     # ═══════════════════════════════════════════════════════════════════
     # WINNER: CLAIM PRIZE
     # ═══════════════════════════════════════════════════════════════════
+    @gl.public.write
     def claim_prize(self) -> int:
         """
         Winners call this after finalization to retrieve their prize amount.
@@ -552,7 +574,7 @@ OUTPUT FORMAT (respond ONLY with this exact JSON, no markdown, no extra text):
         if not self.is_finalized:
             raise UserError("Hackathon is not yet finalized.")
 
-        caller = str(gl.message.sender_account)
+        caller = str(gl.message.sender_address)
         amount = int(self.prize_claims.get(caller, 0))  # u256 → int for comparison
 
         if amount == 0:
@@ -564,7 +586,10 @@ OUTPUT FORMAT (respond ONLY with this exact JSON, no markdown, no extra text):
         # Mark as claimed before returning (re-entrancy protection)
         self.has_claimed[caller] = True
 
-        # In production: token_contract.transfer(gl.message.sender_account, amount)
+        # Perform the actual transfer of GEN tokens
+        recipient = gl.get_contract_at(gl.message.sender_address)
+        recipient.emit_transfer(value=u256(amount), on='finalized')
+
         return amount   # plain int return (Rule 4)
 
 
@@ -572,34 +597,41 @@ OUTPUT FORMAT (respond ONLY with this exact JSON, no markdown, no extra text):
     # VIEW FUNCTIONS (read-only — no state changes)
     # ═══════════════════════════════════════════════════════════════════
 
+    @gl.public.view
     def get_submission_count(self) -> int:
         """Returns total number of registered submissions."""
         return int(self.submission_count)
 
+    @gl.public.view
     def get_prize_pool(self) -> int:
         """Returns the total prize pool in wei units."""
         return int(self.prize_pool_wei)
 
+    @gl.public.view
     def get_hackathon_name(self) -> str:
         """Returns the hackathon display name."""
         return self.hackathon_name
 
+    @gl.public.view
     def get_is_finalized(self) -> bool:
         """Returns True if prizes have been locked in."""
         return self.is_finalized
 
+    @gl.public.view
     def get_project_url(self, pid: int) -> str:
         """Returns the submitted URL for a given project ID."""
         if pid < 0 or pid >= int(self.submission_count):
             raise UserError(f"Invalid project ID: {pid}.")
         return self.submission_urls.get(pid, "")
 
+    @gl.public.view
     def get_project_name(self, pid: int) -> str:
         """Returns the project name for a given project ID."""
         if pid < 0 or pid >= int(self.submission_count):
             raise UserError(f"Invalid project ID: {pid}.")
         return self.submission_names.get(pid, "")
 
+    @gl.public.view
     def get_score(self, pid: int) -> str:
         """
         Returns the full scorecard as a JSON string for a given project ID.
@@ -621,10 +653,12 @@ OUTPUT FORMAT (respond ONLY with this exact JSON, no markdown, no extra text):
         }
         return json.dumps(scorecard)
 
+    @gl.public.view
     def get_prize_claim(self, addr: str) -> int:
         """Returns the prize amount (wei) allocated to the given address."""
         return int(self.prize_claims.get(addr, 0))
 
+    @gl.public.view
     def get_leaderboard(self) -> str:
         """
         Returns a JSON array of all judged projects sorted by total score (desc).
@@ -648,6 +682,7 @@ OUTPUT FORMAT (respond ONLY with this exact JSON, no markdown, no extra text):
         entries.sort(key=lambda x: (-x["total_score"], x["pid"]))
         return json.dumps(entries)
 
+    @gl.public.view
     def get_organizer(self) -> str:
         """Returns the organizer address as a string."""
         return str(self.organizer)

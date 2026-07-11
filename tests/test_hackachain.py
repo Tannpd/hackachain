@@ -33,28 +33,46 @@ class _MockTreeMap(dict):
 
 class UserError(Exception): pass
 
+class _WriteDecorator:
+    def __call__(self, func): return func
+    def payable(self, func): return func
+
+class _MockContractRef:
+    transfers = [] # class-level tracking list
+    def __init__(self, address):
+        self.address = address
+    def emit_transfer(self, value, on):
+        self.transfers.append((str(self.address), int(value), on))
+
 class _MockGL:
     class message:
-        sender_account = _MockAddress("0xORGANIZER000")
+        sender_address = _MockAddress("0xORGANIZER000")
+        value = 0
+
+    class public:
+        write = _WriteDecorator()
+        @staticmethod
+        def view(func): return func
 
     class nondet:
-        @staticmethod
-        def web_render(url: str) -> str:
-            """Fake web scrape — returns a realistic project description."""
-            if "404" in url or "bad" in url:
-                raise ConnectionError("HTTP 404 – page not found")
-            return f"""
-            Project: Awesome DeFi Dashboard
-            GitHub: https://github.com/example/defi-dashboard
-            Tech Stack: React, Solidity, TheGraph, IPFS, Hardhat
-            Live Demo: https://defi-dashboard.vercel.app
-            Screenshots: [3 screenshots attached]
-            Test Coverage: 87%
-            Description: A comprehensive DeFi analytics dashboard that aggregates
-            data from Uniswap, Aave, and Compound in real-time. Features wallet
-            portfolio tracking, yield optimization suggestions, and gas price alerts.
-            Built during ETHGlobal 2024. Won Best DeFi Award.
-            """
+        class web:
+            @staticmethod
+            def render(url: str) -> str:
+                """Fake web scrape — returns a realistic project description."""
+                if "404" in url or "bad" in url:
+                    raise ConnectionError("HTTP 404 – page not found")
+                return f"""
+                Project: Awesome DeFi Dashboard
+                GitHub: https://github.com/example/defi-dashboard
+                Tech Stack: React, Solidity, TheGraph, IPFS, Hardhat
+                Live Demo: https://defi-dashboard.vercel.app
+                Screenshots: [3 screenshots attached]
+                Test Coverage: 87%
+                Description: A comprehensive DeFi analytics dashboard that aggregates
+                data from Uniswap, Aave, and Compound in real-time. Features wallet
+                portfolio tracking, yield optimization suggestions, and gas price alerts.
+                Built during ETHGlobal 2024. Won Best DeFi Award.
+                """
 
         @staticmethod
         def exec_prompt(prompt: str) -> str:
@@ -79,7 +97,26 @@ class _MockGL:
             return result
 
     class Contract:
-        pass
+        def __new__(cls, *args, **kwargs):
+            instance = super().__new__(cls)
+            # Auto-initialize TreeMap and DynArray fields from type annotations
+            annotations = getattr(cls, '__annotations__', {})
+            for name, type_hint in annotations.items():
+                type_str = str(type_hint)
+                if 'TreeMap' in type_str:
+                    setattr(instance, name, _MockTreeMap())
+                elif 'DynArray' in type_str or 'list' in type_str:
+                    setattr(instance, name, [])
+            return instance
+
+    @staticmethod
+    def get_contract_at(address):
+        return _MockContractRef(address)
+
+# Sized integer mocks to avoid NameError when evaluating contract annotations
+u256 = int
+u64 = int
+i32 = int
 
 # Inject mock into sys.modules so the contract's `from genlayer import *` works
 import types
@@ -90,6 +127,9 @@ mock_module.UserError = UserError
 mock_module.Address = _MockAddress
 mock_module.TreeMap = _MockTreeMap
 mock_module.DynArray = list
+mock_module.u256 = u256
+mock_module.u64 = u64
+mock_module.i32 = i32
 
 # Patch `from genlayer import *` by making `gl` available in builtins
 import builtins
@@ -98,6 +138,9 @@ builtins.UserError = UserError
 builtins.Address = _MockAddress
 builtins.TreeMap = _MockTreeMap
 builtins.DynArray = list
+builtins.u256 = u256
+builtins.u64 = u64
+builtins.i32 = i32
 sys.modules["genlayer"] = mock_module
 
 # ─── Load the contract under test ──────────────────────────────────────────
@@ -134,13 +177,14 @@ def run_test(name: str, fn):
 
 def fresh_contract(sender="0xORGANIZER000") -> ContractClass:
     """Create a fresh contract instance with the given sender."""
-    _MockGL.message.sender_account = _MockAddress(sender)
+    _MockGL.message.sender_address = _MockAddress(sender)
     c = ContractClass()
     return c
 
 def setup(c) -> ContractClass:
     """Run setup_hackathon with default params."""
-    _MockGL.message.sender_account = _MockAddress("0xORGANIZER000")
+    _MockGL.message.sender_address = _MockAddress("0xORGANIZER000")
+    _MockGL.message.value = 1_000_000
     now = int(time.time())
     c.setup_hackathon(
         name="ETHGlobal Hackathon 2025",
@@ -151,7 +195,7 @@ def setup(c) -> ContractClass:
     return c
 
 def submit(c, name="DeFi Dashboard", url="https://github.com/example/defi", sender="0xPARTICIPANT1") -> int:
-    _MockGL.message.sender_account = _MockAddress(sender)
+    _MockGL.message.sender_address = _MockAddress(sender)
     return c.submit_project(name, url)
 
 
@@ -169,7 +213,8 @@ def test_setup_happy_path():
 
 def test_setup_rejects_non_organizer():
     c = fresh_contract()
-    _MockGL.message.sender_account = _MockAddress("0xSTRANGER")
+    _MockGL.message.sender_address = _MockAddress("0xSTRANGER")
+    _MockGL.message.value = 100
     try:
         c.setup_hackathon("Hack", 100, 1, 2)
         assert False, "Should have raised UserError"
@@ -187,7 +232,8 @@ def test_setup_cannot_be_called_twice():
 
 def test_setup_rejects_zero_prize():
     c = fresh_contract()
-    _MockGL.message.sender_account = _MockAddress("0xORGANIZER000")
+    _MockGL.message.sender_address = _MockAddress("0xORGANIZER000")
+    _MockGL.message.value = 0
     try:
         c.setup_hackathon("Hack", 0, 1, 2)
         assert False
@@ -196,7 +242,8 @@ def test_setup_rejects_zero_prize():
 
 def test_setup_rejects_invalid_deadlines():
     c = fresh_contract()
-    _MockGL.message.sender_account = _MockAddress("0xORGANIZER000")
+    _MockGL.message.sender_address = _MockAddress("0xORGANIZER000")
+    _MockGL.message.value = 100
     try:
         # judging_deadline <= submission_deadline
         c.setup_hackathon("Hack", 100, 1000, 500)
@@ -241,7 +288,7 @@ def test_submit_initialises_scores_to_minus_one():
 
 def test_submit_rejects_empty_url():
     c = fresh_contract(); setup(c)
-    _MockGL.message.sender_account = _MockAddress("0xA")
+    _MockGL.message.sender_address = _MockAddress("0xA")
     try:
         c.submit_project("Name", "")
         assert False
@@ -270,7 +317,7 @@ print("\n\033[1m📋 Group 3: AI Judging & Consensus\033[0m")
 def test_judge_scores_project():
     c = fresh_contract(); setup(c)
     pid = submit(c)
-    _MockGL.message.sender_account = _MockAddress("0xORGANIZER000")
+    _MockGL.message.sender_address = _MockAddress("0xORGANIZER000")
     c.judge_project(pid)
     assert c.is_judged.get(pid) is True
     assert c.scores_tech.get(pid) == 26
@@ -281,7 +328,7 @@ def test_judge_scores_project():
 def test_judge_persists_reasoning():
     c = fresh_contract(); setup(c)
     pid = submit(c)
-    _MockGL.message.sender_account = _MockAddress("0xORGANIZER000")
+    _MockGL.message.sender_address = _MockAddress("0xORGANIZER000")
     c.judge_project(pid)
     reasoning = c.scores_reasoning.get(pid, "")
     assert len(reasoning) > 20
@@ -289,7 +336,7 @@ def test_judge_persists_reasoning():
 def test_judge_rejects_non_organizer():
     c = fresh_contract(); setup(c)
     pid = submit(c)
-    _MockGL.message.sender_account = _MockAddress("0xHACKER")
+    _MockGL.message.sender_address = _MockAddress("0xHACKER")
     try:
         c.judge_project(pid)
         assert False
@@ -299,7 +346,7 @@ def test_judge_rejects_non_organizer():
 def test_judge_rejects_double_judging():
     c = fresh_contract(); setup(c)
     pid = submit(c)
-    _MockGL.message.sender_account = _MockAddress("0xORGANIZER000")
+    _MockGL.message.sender_address = _MockAddress("0xORGANIZER000")
     c.judge_project(pid)
     try:
         c.judge_project(pid)
@@ -310,7 +357,7 @@ def test_judge_rejects_double_judging():
 def test_judge_handles_bad_url_gracefully():
     """Contract must not crash when URL returns 404; scores 0 and records error."""
     # Temporarily patch web.render to raise
-    original_render = _MockGL.nondet.web_render
+    original_web = _MockGL.nondet.web
 
     class _BadFetch:
         @staticmethod
@@ -326,7 +373,7 @@ def test_judge_handles_bad_url_gracefully():
     try:
         c = fresh_contract(); setup(c)
         pid = submit(c, url="https://bad-url-404.example")
-        _MockGL.message.sender_account = _MockAddress("0xORGANIZER000")
+        _MockGL.message.sender_address = _MockAddress("0xORGANIZER000")
         c.judge_project(pid)
         # Contract should succeed with zero scores
         assert c.is_judged.get(pid) is True
@@ -334,13 +381,13 @@ def test_judge_handles_bad_url_gracefully():
     finally:
         # Restore original
         class _RestoredNondet:
-            web_render = original_render
+            web = original_web
             exec_prompt = _MockGL.nondet.exec_prompt
-        _MockGL.nondet = _MockGL.nondet  # restore original mock
+        _MockGL.nondet = _RestoredNondet
 
 def test_judge_invalid_pid_raises():
     c = fresh_contract(); setup(c)
-    _MockGL.message.sender_account = _MockAddress("0xORGANIZER000")
+    _MockGL.message.sender_address = _MockAddress("0xORGANIZER000")
     try:
         c.judge_project(99)
         assert False
@@ -350,7 +397,7 @@ def test_judge_invalid_pid_raises():
 def test_get_score_returns_json():
     c = fresh_contract(); setup(c)
     pid = submit(c)
-    _MockGL.message.sender_account = _MockAddress("0xORGANIZER000")
+    _MockGL.message.sender_address = _MockAddress("0xORGANIZER000")
     c.judge_project(pid)
     score_json = c.get_score(pid)
     scorecard = json.loads(score_json)
@@ -373,42 +420,42 @@ def _judged_contract_3_projects():
     """Helper: contract with 3 judged projects scoring 72, 60, 45."""
     c = fresh_contract(); setup(c)
 
-    # Patch exec_prompt to return different scores per call
-    call_count = [0]
-    score_sets = [
-        {"tech_score": 26, "ui_score": 22, "completeness_score": 24, "reasoning": "Top project."},
-        {"tech_score": 20, "ui_score": 20, "completeness_score": 20, "reasoning": "Mid project."},
-        {"tech_score": 15, "ui_score": 15, "completeness_score": 15, "reasoning": "Lower project."},
-    ]
+    # Patch exec_prompt to return different scores based on the project evaluated
     def multi_prompt(prompt):
-        idx = min(call_count[0], len(score_sets) - 1)
-        call_count[0] += 1
-        return json.dumps(score_sets[idx])
+        if "Project 0" in prompt:
+            return json.dumps({"tech_score": 26, "ui_score": 22, "completeness_score": 24, "reasoning": "Top project."})
+        elif "Project 1" in prompt:
+            return json.dumps({"tech_score": 20, "ui_score": 20, "completeness_score": 20, "reasoning": "Mid project."})
+        elif "Project 2" in prompt:
+            return json.dumps({"tech_score": 15, "ui_score": 15, "completeness_score": 15, "reasoning": "Lower project."})
+        return json.dumps({"tech_score": 26, "ui_score": 22, "completeness_score": 24, "reasoning": "Top project."})
+
     _MockGL.nondet.exec_prompt = multi_prompt
 
     pids = [
         submit(c, f"Project {i}", f"https://p{i}.dev", f"0xUSER{i}")
         for i in range(3)
     ]
-    _MockGL.message.sender_account = _MockAddress("0xORGANIZER000")
+    _MockGL.message.sender_address = _MockAddress("0xORGANIZER000")
     for pid in pids:
         c.judge_project(pid)
 
     # Restore original mock
     _MockGL.nondet.exec_prompt = _MockGL_exec_prompt_orig
+    c.submission_deadline = int(time.time()) - 10
     return c
 
 _MockGL_exec_prompt_orig = _MockGL.nondet.exec_prompt
 
 def test_finalize_sets_flag():
     c = _judged_contract_3_projects()
-    _MockGL.message.sender_account = _MockAddress("0xORGANIZER000")
+    _MockGL.message.sender_address = _MockAddress("0xORGANIZER000")
     c.finalize_hackathon()
     assert c.is_finalized is True
 
 def test_finalize_prize_split():
     c = _judged_contract_3_projects()
-    _MockGL.message.sender_account = _MockAddress("0xORGANIZER000")
+    _MockGL.message.sender_address = _MockAddress("0xORGANIZER000")
     c.finalize_hackathon()
     # Pool = 1_000_000; 50/30/20 split
     # Winner[0] = 0xUSER0 (score 72) → 500_000
@@ -421,19 +468,21 @@ def test_finalize_prize_split():
 def test_finalize_dust_goes_to_first():
     """With a pool of 1_000_001 wei, the extra 1 should go to 1st place."""
     c = fresh_contract()
-    _MockGL.message.sender_account = _MockAddress("0xORGANIZER000")
+    _MockGL.message.sender_address = _MockAddress("0xORGANIZER000")
+    _MockGL.message.value = 1_000_001
     now = int(time.time())
     c.setup_hackathon("Dust Test", 1_000_001, now + 1, now + 2)
     pid = submit(c)
-    _MockGL.message.sender_account = _MockAddress("0xORGANIZER000")
+    _MockGL.message.sender_address = _MockAddress("0xORGANIZER000")
     c.judge_project(pid)
+    c.submission_deadline = now - 1
     c.finalize_hackathon()
     # Only 1 project: gets 100% = 1_000_001
     assert c.prize_claims.get("0xPARTICIPANT1") == 1_000_001
 
 def test_finalize_rejects_non_organizer():
     c = _judged_contract_3_projects()
-    _MockGL.message.sender_account = _MockAddress("0xHACKER")
+    _MockGL.message.sender_address = _MockAddress("0xHACKER")
     try:
         c.finalize_hackathon()
         assert False
@@ -442,7 +491,7 @@ def test_finalize_rejects_non_organizer():
 
 def test_finalize_twice_raises():
     c = _judged_contract_3_projects()
-    _MockGL.message.sender_account = _MockAddress("0xORGANIZER000")
+    _MockGL.message.sender_address = _MockAddress("0xORGANIZER000")
     c.finalize_hackathon()
     try:
         c.finalize_hackathon()
@@ -452,7 +501,7 @@ def test_finalize_twice_raises():
 
 def test_submit_after_finalize_raises():
     c = _judged_contract_3_projects()
-    _MockGL.message.sender_account = _MockAddress("0xORGANIZER000")
+    _MockGL.message.sender_address = _MockAddress("0xORGANIZER000")
     c.finalize_hackathon()
     try:
         submit(c, sender="0xLATE")
@@ -467,31 +516,31 @@ for fn in [test_finalize_sets_flag, test_finalize_prize_split,
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# TEST GROUP 5: Claim Prize
+# TEST GROUP 5: Prize Claiming
 # ═══════════════════════════════════════════════════════════════════════════
 print("\n\033[1m📋 Group 5: Prize Claiming\033[0m")
 
 def test_claim_returns_amount():
     c = _judged_contract_3_projects()
-    _MockGL.message.sender_account = _MockAddress("0xORGANIZER000")
+    _MockGL.message.sender_address = _MockAddress("0xORGANIZER000")
     c.finalize_hackathon()
-    _MockGL.message.sender_account = _MockAddress("0xUSER0")
+    _MockGL.message.sender_address = _MockAddress("0xUSER0")
     amount = c.claim_prize()
     assert amount == 500_000
 
 def test_claim_marks_claimed():
     c = _judged_contract_3_projects()
-    _MockGL.message.sender_account = _MockAddress("0xORGANIZER000")
+    _MockGL.message.sender_address = _MockAddress("0xORGANIZER000")
     c.finalize_hackathon()
-    _MockGL.message.sender_account = _MockAddress("0xUSER0")
+    _MockGL.message.sender_address = _MockAddress("0xUSER0")
     c.claim_prize()
     assert c.has_claimed.get("0xUSER0") is True
 
 def test_double_claim_raises():
     c = _judged_contract_3_projects()
-    _MockGL.message.sender_account = _MockAddress("0xORGANIZER000")
+    _MockGL.message.sender_address = _MockAddress("0xORGANIZER000")
     c.finalize_hackathon()
-    _MockGL.message.sender_account = _MockAddress("0xUSER0")
+    _MockGL.message.sender_address = _MockAddress("0xUSER0")
     c.claim_prize()
     try:
         c.claim_prize()
@@ -501,9 +550,9 @@ def test_double_claim_raises():
 
 def test_no_prize_raises():
     c = _judged_contract_3_projects()
-    _MockGL.message.sender_account = _MockAddress("0xORGANIZER000")
+    _MockGL.message.sender_address = _MockAddress("0xORGANIZER000")
     c.finalize_hackathon()
-    _MockGL.message.sender_account = _MockAddress("0xNOBODY")
+    _MockGL.message.sender_address = _MockAddress("0xNOBODY")
     try:
         c.claim_prize()
         assert False
@@ -512,7 +561,7 @@ def test_no_prize_raises():
 
 def test_claim_before_finalize_raises():
     c = _judged_contract_3_projects()
-    _MockGL.message.sender_account = _MockAddress("0xUSER0")
+    _MockGL.message.sender_address = _MockAddress("0xUSER0")
     try:
         c.claim_prize()
         assert False
@@ -561,6 +610,85 @@ def test_get_score_unjudged():
 for fn in [test_get_leaderboard_sorted, test_get_leaderboard_empty,
            test_get_organizer, test_get_prize_claim_zero_for_unknown,
            test_get_score_unjudged]:
+    run_test(fn.__name__, fn)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# TEST GROUP 7: Escrow, Deadlines & Token Claims
+# ═══════════════════════════════════════════════════════════════════════════
+print("\n\033[1m📋 Group 7: Escrow, Deadlines & Token Claims\033[0m")
+
+def test_setup_rejects_mismatched_value():
+    c = fresh_contract()
+    _MockGL.message.sender_address = _MockAddress("0xORGANIZER000")
+    _MockGL.message.value = 500  # Mismatched value
+    try:
+        c.setup_hackathon("Mismatched", 1000, 1, 2)
+        assert False, "Should fail because value != prize_pool_wei"
+    except UserError as e:
+        assert "value does not match" in str(e).lower()
+
+def test_submit_after_deadline_raises():
+    c = fresh_contract()
+    _MockGL.message.sender_address = _MockAddress("0xORGANIZER000")
+    _MockGL.message.value = 1000
+    now = int(time.time())
+    c.setup_hackathon("Hack", 1000, now - 10, now + 10)
+    try:
+        submit(c, name="DeFi", url="https://defi.io", sender="0xUSER1")
+        assert False, "Should fail because submission deadline passed"
+    except UserError as e:
+        assert "deadline has passed" in str(e).lower()
+
+def test_judge_after_deadline_raises():
+    c = fresh_contract()
+    _MockGL.message.sender_address = _MockAddress("0xORGANIZER000")
+    _MockGL.message.value = 1000
+    now = int(time.time())
+    c.setup_hackathon("Hack", 1000, now + 10, now + 20)
+    pid = submit(c)
+    
+    # Simulate time passing past the judging deadline
+    c.judging_deadline = now - 10
+    _MockGL.message.sender_address = _MockAddress("0xORGANIZER000")
+    try:
+        c.judge_project(pid)
+        assert False, "Should fail because judging deadline passed"
+    except UserError as e:
+        assert "deadline has passed" in str(e).lower()
+
+def test_finalize_before_submission_deadline_raises():
+    c = fresh_contract()
+    _MockGL.message.sender_address = _MockAddress("0xORGANIZER000")
+    _MockGL.message.value = 1000
+    now = int(time.time())
+    c.setup_hackathon("Hack", 1000, now + 100, now + 200)
+    try:
+        c.finalize_hackathon()
+        assert False, "Should fail because submission deadline not reached"
+    except UserError as e:
+        assert "before the submission deadline" in str(e).lower()
+
+def test_claim_prize_performs_emit_transfer():
+    _MockContractRef.transfers.clear()
+    c = _judged_contract_3_projects()
+    _MockGL.message.sender_address = _MockAddress("0xORGANIZER000")
+    c.submission_deadline = int(time.time()) - 10
+    c.finalize_hackathon()
+    
+    _MockGL.message.sender_address = _MockAddress("0xUSER0")
+    amount = c.claim_prize()
+    
+    assert amount == 500_000
+    assert len(_MockContractRef.transfers) == 1
+    addr, val, on = _MockContractRef.transfers[0]
+    assert addr == "0xUSER0"
+    assert val == 500_000
+    assert on == "finalized"
+
+for fn in [test_setup_rejects_mismatched_value, test_submit_after_deadline_raises,
+           test_judge_after_deadline_raises, test_finalize_before_submission_deadline_raises,
+           test_claim_prize_performs_emit_transfer]:
     run_test(fn.__name__, fn)
 
 
