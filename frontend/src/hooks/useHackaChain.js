@@ -102,7 +102,7 @@ export function useHackaChain() {
     });
   }
 
-  async function writeContract(functionName, args = []) {
+  async function writeContract(functionName, args = [], value = 0n) {
     if (!glAccount) throw new Error('Wallet not connected.');
     const client = getWriteClient(glAccount);
     
@@ -115,7 +115,7 @@ export function useHackaChain() {
       address: CONTRACT_ADDRESS,
       functionName,
       args,
-      value: 0,
+      value: value,
     });
     // Wait for FINALIZED status (GenLayer consensus)
     const receipt = await client.waitForTransactionReceipt({
@@ -167,7 +167,7 @@ export function useHackaChain() {
   const setupHackathon = useCallback(async ({ name, prizeWei, subDeadline, judgeDeadline }) => {
     setLoadingKey('setup', true);
     try {
-      await writeContract('setup_hackathon', [name, prizeWei, subDeadline, judgeDeadline]);
+      await writeContract('setup_hackathon', [name, prizeWei, subDeadline, judgeDeadline], BigInt(prizeWei));
       toast('success', `✅ Hackathon "${name}" created on-chain!`);
       await fetchHackathonInfo();
       return true;
