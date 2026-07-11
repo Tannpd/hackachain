@@ -1,22 +1,35 @@
 /**
  * Leaderboard.jsx
- * ===============
+ * ============
  * Live leaderboard showing all judged projects sorted by AI score.
  * Includes the "AI Judging in Progress" loading state with animated
  * step-by-step progress for the organizer judging flow.
  */
 
 import { useState, useEffect } from 'react';
+import {
+  BrainIcon,
+  TrophyIcon,
+  PaintIcon,
+  CheckIcon,
+  CodeIcon,
+  LockIcon,
+  LogoIcon,
+  RefreshIcon,
+  InfoIcon,
+  MonitorIcon,
+  GlobeIcon
+} from './Icons';
 
 // Judging steps for the progress animation
 const JUDGING_STEPS = [
-  { icon: '🌐', label: 'Fetching project URL via web.render()…' },
-  { icon: '🖥️', label: 'Rendering full DOM (headless Chromium)…' },
-  { icon: '🧠', label: 'AI Judge Panel evaluating (exec_prompt)…' },
-  { icon: '🔒', label: 'Validator nodes reaching consensus…' },
+  { icon: GlobeIcon, label: 'Fetching project URL via web.render()…' },
+  { icon: MonitorIcon, label: 'Rendering full DOM (headless Chromium)…' },
+  { icon: BrainIcon, label: 'AI Judge Panel evaluating (exec_prompt)…' },
+  { icon: LockIcon, label: 'Validator nodes reaching consensus…' },
 ];
 
-function ScoreBar({ label, value, max = 30, className }) {
+function ScoreBar({ label, icon: IconComponent, value, max = 30, className }) {
   const [width, setWidth] = useState(0);
   useEffect(() => {
     const t = setTimeout(() => setWidth((value / max) * 100), 100);
@@ -26,9 +39,12 @@ function ScoreBar({ label, value, max = 30, className }) {
   return (
     <div className="score-row">
       <div className="score-header">
-        <span className="score-label">{label}</span>
+        <span className="score-label" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+          {IconComponent && <IconComponent size={14} style={{ color: '#9ca3af' }} />}
+          {label}
+        </span>
         <span className="score-value" style={{ color: className === 'tech' ? 'var(--c-violet)' : className === 'ui' ? 'var(--c-cyan)' : 'var(--c-amber)' }}>
-          {value}<span style={{ color:'#475569', fontWeight:400 }}>/{max}</span>
+          {value}<span style={{ color:'#4b5563', fontWeight:400 }}>/{max}</span>
         </span>
       </div>
       <div className="score-bar-bg">
@@ -42,15 +58,16 @@ function ScorecardModal({ entry, onClose }) {
   if (!entry) return null;
   return (
     <div style={{
-      position:'fixed', inset:0, background:'rgba(0,0,0,0.75)', backdropFilter:'blur(8px)',
+      position:'fixed', inset:0, background:'rgba(3, 7, 18, 0.85)', backdropFilter:'blur(12px)',
       display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000, padding:'1rem'
     }} onClick={onClose}>
       <div className="scorecard-panel" style={{ maxWidth:540, width:'100%' }}
         onClick={e => e.stopPropagation()}>
 
         {/* Close */}
-        <button onClick={onClose} style={{ position:'absolute', top:'1rem', right:'1rem',
-          background:'transparent', border:'none', color:'#64748b', cursor:'pointer', fontSize:'1.2rem' }}>✕</button>
+        <button onClick={onClose} style={{ position:'absolute', top:'1.5rem', right:'1.5rem',
+          background:'transparent', border:'none', color:'#6b7280', cursor:'pointer', fontSize:'1.25rem',
+          transition: 'color 0.2s' }} onMouseEnter={e => e.target.style.color = 'white'} onMouseLeave={e => e.target.style.color = '#6b7280'}>✕</button>
 
         <div style={{ display:'flex', alignItems:'center', gap:'1rem', marginBottom:'0.5rem' }}>
           <div className={`rank-badge rank-${entry.rank <= 3 ? entry.rank : 'n'}`}>{entry.rank}</div>
@@ -66,15 +83,17 @@ function ScorecardModal({ entry, onClose }) {
         </div>
 
         <div className="score-section">
-          <ScoreBar label="⚙️ Tech Breakthrough" value={entry.tech_score} className="tech" />
-          <ScoreBar label="🎨 UI / UX Design"    value={entry.ui_score}  className="ui" />
-          <ScoreBar label="✅ Completeness"       value={entry.completeness_score} className="complete" />
+          <ScoreBar label="Tech Level" icon={CodeIcon} value={entry.tech_score} className="tech" />
+          <ScoreBar label="UI / UX Design" icon={PaintIcon} value={entry.ui_score} className="ui" />
+          <ScoreBar label="Completeness" icon={CheckIcon} value={entry.completeness_score} className="complete" />
         </div>
 
         {entry.reasoning && (
           <div className="reasoning-box">
-            <div style={{ fontSize:'0.7rem', color:'#64748b', fontWeight:700, textTransform:'uppercase',
-              letterSpacing:'0.06em', marginBottom:'0.5rem', fontStyle:'normal' }}>🤖 AI Reasoning</div>
+            <div style={{ fontSize:'0.75rem', color:'#9ca3af', fontWeight:700, textTransform:'uppercase',
+              letterSpacing:'0.06em', marginBottom:'0.5rem', fontStyle:'normal', display:'flex', alignItems:'center', gap:'0.4rem' }}>
+              <BrainIcon size={14} /> AI Reasoning
+            </div>
             {entry.reasoning}
           </div>
         )}
@@ -106,14 +125,17 @@ export default function Leaderboard({ useHook }) {
               <p className="section-sub">Ranked by consensus AI score. Click any row to view the full scorecard.</p>
             </div>
 
-            <button className="btn btn-secondary" style={{ marginBottom:'1rem', fontSize:'0.8rem' }}
+            <button className="btn btn-secondary" style={{ marginBottom:'1.5rem', fontSize:'0.85rem', padding:'0.5rem 1rem' }}
               onClick={fetchLeaderboard} disabled={loading.leaderboard}>
-              {loading.leaderboard ? '⟳ Refreshing…' : '⟳ Refresh'}
+              <RefreshIcon size={14} className={loading.leaderboard ? 'spin' : ''} />
+              {loading.leaderboard ? 'Refreshing…' : 'Refresh'}
             </button>
 
             {leaderboard.length === 0 ? (
               <div className="empty-state card">
-                <div className="empty-icon">📊</div>
+                <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1.25rem', color: '#4b5563' }}>
+                  <LogoIcon size={48} />
+                </div>
                 <div className="empty-title">No scores yet</div>
                 <div className="empty-desc">Projects will appear here once the AI has judged them.</div>
               </div>
@@ -131,14 +153,14 @@ export default function Leaderboard({ useHook }) {
                       <div>
                         <div className="lb-project-name">{entry.project_name}</div>
                         <div className="lb-submitter">{entry.submitter?.slice(0,10)}…</div>
-                        <div style={{ display:'flex', gap:'0.5rem', marginTop:'0.4rem', flexWrap:'wrap' }}>
+                        <div style={{ display:'flex', gap:'0.5rem', marginTop:'0.5rem', flexWrap:'wrap' }}>
                           {[
                             { label:'Tech', value: entry.tech_score, color:'var(--c-violet)' },
                             { label:'UI',   value: entry.ui_score,   color:'var(--c-cyan)' },
                             { label:'Done', value: entry.completeness_score, color:'var(--c-amber)' },
                           ].map(({ label, value, color }) => (
-                            <span key={label} style={{ fontSize:'0.72rem', padding:'0.15rem 0.5rem',
-                              background:'var(--c-surface-2)', border:'1px solid var(--c-border)',
+                            <span key={label} style={{ fontSize:'0.75rem', padding:'0.2rem 0.6rem',
+                              background:'rgba(255,255,255,0.03)', border:'1px solid var(--c-border)',
                               borderRadius:'6px', color, fontFamily:'var(--font-mono)', fontWeight:700 }}>
                               {label} {value}
                             </span>
@@ -166,19 +188,21 @@ export default function Leaderboard({ useHook }) {
 
             {/* AI Judging in Progress */}
             {isJudging && (
-              <div className="card" style={{ marginBottom:'1.25rem' }}>
+              <div className="card" style={{ marginBottom:'1.5rem' }}>
                 <div className="judging-overlay">
                   <div className="ai-spinner">
                     <div className="ai-spinner-ring" />
                     <div className="ai-spinner-ring" />
                     <div className="ai-spinner-ring" />
                     <span style={{ position:'absolute', inset:0, display:'flex',
-                      alignItems:'center', justifyContent:'center', fontSize:'1.2rem' }}>🧠</span>
+                      alignItems:'center', justifyContent:'center', color: 'var(--c-violet)' }}>
+                      <BrainIcon size={24} />
+                    </span>
                   </div>
-                  <h3 style={{ marginBottom:'0.4rem' }}>AI Judging in Progress</h3>
-                  <p style={{ color:'#64748b', fontSize:'0.85rem', marginBottom:'0.5rem' }}>
+                  <h3 style={{ marginBottom:'0.5rem' }}>AI Judging in Progress</h3>
+                  <p style={{ color:'#9ca3af', fontSize:'0.9rem', marginBottom:'1.5rem' }}>
                     GenLayer validators are independently evaluating the project URL.
-                    Consensus will be reached when enough nodes agree on the score (±5 pts).
+                    Consensus will be reached when enough nodes agree on the score (±3 pts).
                   </p>
 
                   <div className="judging-steps">
@@ -186,11 +210,12 @@ export default function Leaderboard({ useHook }) {
                       const stepNum = idx + 1;
                       const isDone   = judgingStep > stepNum;
                       const isActive = judgingStep === stepNum;
+                      const StepIconComponent = step.icon;
                       return (
                         <div key={idx}
                           className={`judging-step ${isActive ? 'active' : isDone ? 'done' : ''}`}>
                           <span className="step-icon">
-                            {isDone ? '✅' : isActive ? '⟳' : step.icon}
+                            {isDone ? <CheckIcon size={16} /> : isActive ? <span className="pulse-dot" style={{ width: 8, height: 8 }} /> : <StepIconComponent size={16} />}
                           </span>
                           <span>{step.label}</span>
                         </div>
@@ -202,12 +227,14 @@ export default function Leaderboard({ useHook }) {
             )}
 
             {/* Judge a project by PID */}
-            <div className="card" style={{ marginBottom:'1.25rem' }}>
+            <div className="card" style={{ marginBottom:'1.5rem' }}>
               <div className="card-header">
-                <div className="card-icon violet">🧠</div>
+                <div className="card-icon violet">
+                  <BrainIcon size={20} />
+                </div>
                 <div>
                   <h3>Trigger AI Judge</h3>
-                  <div style={{ fontSize:'0.8rem', color:'#64748b' }}>Enter a project ID to evaluate</div>
+                  <div style={{ fontSize:'0.8rem', color:'#9ca3af', marginTop:'0.2rem' }}>Enter a project ID to evaluate</div>
                 </div>
               </div>
 
@@ -221,8 +248,8 @@ export default function Leaderboard({ useHook }) {
                   {isJudging ? '…' : '⚡ Judge'}
                 </button>
               </div>
-              <p className="form-hint" style={{ marginTop:'0.5rem' }}>
-                💡 This triggers <span className="mono" style={{ color:'var(--c-violet)', fontSize:'0.78rem' }}>
+              <p className="form-hint" style={{ marginTop:'0.6rem' }}>
+                <InfoIcon size={14} /> This triggers <span className="mono" style={{ color:'var(--c-violet)', fontSize:'0.78rem', fontWeight:600 }}>
                 judge_project(pid)</span> on-chain with full web scraping + LLM consensus.
               </p>
             </div>
@@ -230,30 +257,35 @@ export default function Leaderboard({ useHook }) {
             {/* Finalize */}
             <div className="card">
               <div className="card-header">
-                <div className="card-icon emerald">🏆</div>
+                <div className="card-icon emerald">
+                  <TrophyIcon size={20} />
+                </div>
                 <div>
                   <h3>Finalize Hackathon</h3>
-                  <div style={{ fontSize:'0.8rem', color:'#64748b' }}>Lock in prize distribution</div>
+                  <div style={{ fontSize:'0.8rem', color:'#9ca3af', marginTop:'0.2rem' }}>Lock in prize distribution</div>
                 </div>
               </div>
 
-              <p style={{ color:'#64748b', fontSize:'0.875rem', marginBottom:'1rem' }}>
+              <p style={{ color:'#9ca3af', fontSize:'0.9rem', marginBottom:'1.5rem', lineHeight: 1.6 }}>
                 Once all projects are judged, finalize the hackathon to lock in the prize
                 pool distribution (50/30/20). Winners can then claim their prizes.
               </p>
 
               {hackathonInfo?.finalized ? (
                 <div className="status-pill status-done" style={{ display:'inline-flex' }}>
-                  ✅ Hackathon Finalized
+                  <CheckIcon size={14} /> Hackathon Finalized
                 </div>
               ) : (
                 <button id="finalize-btn" className="btn btn-emerald btn-full"
                   disabled={loading.finalize || !hackathonInfo?.name}
                   onClick={finalizeHackathon}>
                   {loading.finalize ? (
-                    <><span className="pulse-dot" style={{ background:'white' }} /> Finalizing…</>
+                    <><span className="pulse-dot" style={{ background:'#030712' }} /> Finalizing…</>
                   ) : (
-                    <><span>🔒</span> Finalize & Lock Prizes</>
+                    <>
+                      <LockIcon size={16} />
+                      Finalize & Lock Prizes
+                    </>
                   )}
                 </button>
               )}

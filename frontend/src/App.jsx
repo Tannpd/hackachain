@@ -13,12 +13,19 @@ import { useHackaChain } from './hooks/useHackaChain';
 import SubmitProject from './components/SubmitProject';
 import Leaderboard  from './components/Leaderboard';
 import ClaimPrize   from './components/ClaimPrize';
+import { 
+  LogoIcon, 
+  RocketIcon, 
+  BrainIcon, 
+  TrophyIcon, 
+  WalletIcon 
+} from './components/Icons';
 import './index.css';
 
 const TABS = [
-  { id: 'submit',    label: '🚀 Submit',      component: SubmitProject },
-  { id: 'judge',     label: '🧠 Leaderboard', component: Leaderboard  },
-  { id: 'claim',     label: '💰 Claim Prize', component: ClaimPrize   },
+  { id: 'submit',    label: 'Submit',      icon: RocketIcon,    component: SubmitProject },
+  { id: 'judge',     label: 'Leaderboard', icon: BrainIcon,     component: Leaderboard  },
+  { id: 'claim',     label: 'Claim Prize', icon: TrophyIcon,    component: ClaimPrize   },
 ];
 
 function ToastContainer({ toasts }) {
@@ -40,10 +47,18 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('submit');
   const hook = useHackaChain();
 
-  const ActiveComponent = TABS.find(t => t.id === activeTab)?.component || SubmitProject;
+  const ActiveTabInfo = TABS.find(t => t.id === activeTab);
+  const ActiveComponent = ActiveTabInfo?.component || SubmitProject;
 
   return (
     <div className="app-wrapper">
+      
+      {/* ── Background Glowing Blobs ──────────────────────────── */}
+      <div className="blur-blobs-container">
+        <div className="blur-blob blob-1" />
+        <div className="blur-blob blob-2" />
+        <div className="blur-blob blob-3" />
+      </div>
 
       {/* ── Navbar ─────────────────────────────────────────────── */}
       <nav className="navbar">
@@ -51,23 +66,29 @@ export default function App() {
 
           {/* Brand */}
           <a href="#" className="navbar-brand" onClick={e => e.preventDefault()}>
-            <div className="brand-icon">⛓️</div>
+            <div className="brand-icon">
+              <LogoIcon size={20} />
+            </div>
             <span className="brand-name">HackaChain</span>
           </a>
 
           {/* Tab navigation */}
           <div className="nav-tabs" role="tablist">
-            {TABS.map(tab => (
-              <button
-                key={tab.id}
-                id={`nav-tab-${tab.id}`}
-                className={`nav-tab ${activeTab === tab.id ? 'active' : ''}`}
-                role="tab"
-                aria-selected={activeTab === tab.id}
-                onClick={() => setActiveTab(tab.id)}>
-                {tab.label}
-              </button>
-            ))}
+            {TABS.map(tab => {
+              const TabIcon = tab.icon;
+              return (
+                <button
+                  key={tab.id}
+                  id={`nav-tab-${tab.id}`}
+                  className={`nav-tab ${activeTab === tab.id ? 'active' : ''}`}
+                  role="tab"
+                  aria-selected={activeTab === tab.id}
+                  onClick={() => setActiveTab(tab.id)}>
+                  <TabIcon size={16} />
+                  {tab.label}
+                </button>
+              );
+            })}
           </div>
 
           {/* Wallet connect */}
@@ -82,7 +103,10 @@ export default function App() {
                 {hook.account.slice(0,6)}…{hook.account.slice(-4)}
               </>
             ) : (
-              <><span>🔌</span> Connect</>
+              <>
+                <WalletIcon size={16} />
+                Connect
+              </>
             )}
           </button>
         </div>
@@ -93,7 +117,7 @@ export default function App() {
         <div className="hero">
           <div className="container">
             <div className="hero-badge">
-              <span>⚡</span> Powered by GenLayer Intelligent Contracts
+              <LogoIcon size={14} /> Powered by GenLayer Intelligent Contracts
             </div>
 
             <h1 className="hero-title">
