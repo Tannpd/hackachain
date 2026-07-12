@@ -33,6 +33,7 @@
 # =============================================================================
 
 from genlayer import *   # Rule 13: ALWAYS use this form. Never import genlayer as gl.
+from genlayer import UserError
 import json
 import time
 
