@@ -54,6 +54,16 @@ class _MockGL:
         @staticmethod
         def view(func): return func
 
+    class evm:
+        @staticmethod
+        def contract_interface(cls):
+            class EVMContractWrapper:
+                def __init__(self, address):
+                    self.address = address
+                def emit_transfer(self, value, on='finalized'):
+                    _MockContractRef.transfers.append((str(self.address), int(value), on))
+            return EVMContractWrapper
+
     class nondet:
         class web:
             @staticmethod

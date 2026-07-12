@@ -37,6 +37,15 @@ import json
 import time
 
 
+@gl.evm.contract_interface
+class Recipient:
+    class View:
+        pass
+    class Write:
+        pass
+
+
+
 # ---------------------------------------------------------------------------
 # Module-level constants  (plain Python int — NOT stored in contract storage)
 # ---------------------------------------------------------------------------
@@ -586,8 +595,8 @@ OUTPUT FORMAT (respond ONLY with this exact JSON, no markdown, no extra text):
         # Mark as claimed before returning (re-entrancy protection)
         self.has_claimed[caller] = True
 
-        # Perform the actual transfer of GEN tokens
-        recipient = gl.get_contract_at(gl.message.sender_address)
+        # Perform the actual transfer of GEN tokens via EVM interface
+        recipient = Recipient(gl.message.sender_address)
         recipient.emit_transfer(value=u256(amount), on='finalized')
 
         return amount   # plain int return (Rule 4)
