@@ -44,6 +44,7 @@ export function useHackaChain() {
   const [glAccount, setGlAccount]         = useState(null); // GenLayer account object
   const [hackathonInfo, setHackathonInfo] = useState(null);
   const [leaderboard, setLeaderboard]     = useState([]);
+  const [projects, setProjects]           = useState([]);
   const [loading, setLoading]             = useState({});
   const [judgingStep, setJudgingStep]     = useState(0);
   const [toasts, setToasts]               = useState([]);
@@ -129,17 +130,19 @@ export function useHackaChain() {
   const fetchHackathonInfo = useCallback(async () => {
     setLoadingKey('info', true);
     try {
-      const [name, pool, finalized, count] = await Promise.all([
+      const [name, pool, finalized, count, organizer] = await Promise.all([
         readContract('get_hackathon_name'),
         readContract('get_prize_pool'),
         readContract('get_is_finalized'),
         readContract('get_submission_count'),
+        readContract('get_organizer'),
       ]);
       setHackathonInfo({
         name:      String(name || ''),
         pool:      Number(pool || 0),
         finalized: Boolean(finalized),
         count:     Number(count || 0),
+        organizer: String(organizer || '').toLowerCase(),
       });
     } catch (e) {
       console.error('fetchHackathonInfo:', e);
@@ -148,6 +151,28 @@ export function useHackaChain() {
       setLoadingKey('info', false);
     }
   }, [setLoadingKey]);
+
+  // ── Fetch all projects (including unjudged ones) ─────────────────────
+  const fetchProjects = useCallback(async () => {
+    if (!hackathonInfo?.count) {
+      setProjects([]);
+      return;
+    }
+    setLoadingKey('projects', true);
+    try {
+      const promises = [];
+      for (let i = 0; i < hackathonInfo.count; i++) {
+        promises.push(readContract('get_score', [i]));
+      }
+      const rawResults = await Promise.all(promises);
+      const parsed = rawResults.map(raw => typeof raw === 'string' ? JSON.parse(raw) : raw);
+      setProjects(parsed);
+    } catch (e) {
+      console.error('fetchProjects:', e);
+    } finally {
+      setLoadingKey('projects', false);
+    }
+  }, [hackathonInfo?.count, setLoadingKey]);
 
   // ── Fetch leaderboard ─────────────────────────────────────────────────
   const fetchLeaderboard = useCallback(async () => {
@@ -288,21 +313,27 @@ export function useHackaChain() {
     fetchLeaderboard();
   }, [fetchHackathonInfo, fetchLeaderboard]);
 
-  // ── Periodic refresh (every 30s for live leaderboard) ─────────────────
+  // ── Fetch projects when hackathonInfo count changes ───────────────────
+  useEffect(() => {
+    fetchProjects();
+  }, [hackathonInfo?.count, fetchProjects]);
+
+  // ── Periodic refresh (every 30s for live leaderboard and projects) ────
   useEffect(() => {
     const interval = setInterval(() => {
       fetchLeaderboard();
+      fetchProjects();
     }, 30000);
     return () => clearInterval(interval);
-  }, [fetchLeaderboard]);
+  }, [fetchLeaderboard, fetchProjects]);
 
   return {
     account, connectWallet,
-    hackathonInfo, leaderboard,
+    hackathonInfo, leaderboard, projects,
     loading, judgingStep, toasts,
     setupHackathon, submitProject, judgeProject,
     finalizeHackathon, claimPrize, getScore, getPrizeClaim,
-    fetchHackathonInfo, fetchLeaderboard,
+    fetchHackathonInfo, fetchLeaderboard, fetchProjects,
     CONTRACT_ADDRESS,
   };
 }

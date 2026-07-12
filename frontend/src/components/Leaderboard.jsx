@@ -103,20 +103,25 @@ function ScorecardModal({ entry, onClose }) {
 }
 
 export default function Leaderboard({ useHook }) {
-  const { account, leaderboard, loading, judgingStep,
-          judgeProject, finalizeHackathon, hackathonInfo, fetchLeaderboard } = useHook;
+  const { account, leaderboard, projects, loading, judgingStep,
+          judgeProject, finalizeHackathon, hackathonInfo, fetchLeaderboard, fetchProjects } = useHook;
 
   const [judgeTarget, setJudgeTarget] = useState('');
   const [selectedEntry, setSelectedEntry] = useState(null);
 
-  useEffect(() => { fetchLeaderboard(); }, []);
+  useEffect(() => {
+    fetchLeaderboard();
+    fetchProjects();
+  }, []);
 
   const isJudging = Object.keys(loading).some(k => k.startsWith('judge_') && loading[k]);
+  const isOrganizer = account && hackathonInfo?.organizer && (account.toLowerCase() === hackathonInfo.organizer.toLowerCase());
+  const unjudgedProjects = (projects || []).filter(p => !p.is_judged);
 
   return (
     <div className="section">
       <div className="container">
-        <div className="two-col" style={{ alignItems:'start' }}>
+        <div className={isOrganizer ? "two-col" : ""} style={isOrganizer ? { alignItems:'start' } : { maxWidth: 680, margin: '0 auto' }}>
 
           {/* ── Left: Live Leaderboard ───────────────────────── */}
           <div>
@@ -126,7 +131,7 @@ export default function Leaderboard({ useHook }) {
             </div>
 
             <button className="btn btn-secondary" style={{ marginBottom:'1.5rem', fontSize:'0.85rem', padding:'0.5rem 1rem' }}
-              onClick={fetchLeaderboard} disabled={loading.leaderboard}>
+              onClick={() => { fetchLeaderboard(); fetchProjects(); }} disabled={loading.leaderboard}>
               <RefreshIcon size={14} className={loading.leaderboard ? 'spin' : ''} />
               {loading.leaderboard ? 'Refreshing…' : 'Refresh'}
             </button>
@@ -180,117 +185,138 @@ export default function Leaderboard({ useHook }) {
           </div>
 
           {/* ── Right: Organizer Controls / AI Judging Flow ─── */}
-          <div>
-            <div className="section-header">
-              <h2 className="section-title">Judge & Finalize</h2>
-              <p className="section-sub">Organizer controls for AI judging and prize distribution.</p>
-            </div>
+          {isOrganizer && (
+            <div>
+              <div className="section-header">
+                <h2 className="section-title">Judge & Finalize</h2>
+                <p className="section-sub">Organizer controls for AI judging and prize distribution.</p>
+              </div>
 
-            {/* AI Judging in Progress */}
-            {isJudging && (
-              <div className="card" style={{ marginBottom:'1.5rem' }}>
-                <div className="judging-overlay">
-                  <div className="ai-spinner">
-                    <div className="ai-spinner-ring" />
-                    <div className="ai-spinner-ring" />
-                    <div className="ai-spinner-ring" />
-                    <span style={{ position:'absolute', inset:0, display:'flex',
-                      alignItems:'center', justifyContent:'center', color: 'var(--c-violet)' }}>
-                      <BrainIcon size={24} />
-                    </span>
+              {/* AI Judging in Progress */}
+              {isJudging && (
+                <div className="card" style={{ marginBottom:'1.5rem' }}>
+                  <div className="judging-overlay">
+                    <div className="ai-spinner">
+                      <div className="ai-spinner-ring" />
+                      <div className="ai-spinner-ring" />
+                      <div className="ai-spinner-ring" />
+                      <span style={{ position:'absolute', inset:0, display:'flex',
+                        alignItems:'center', justifyContent:'center', color: 'var(--c-violet)' }}>
+                        <BrainIcon size={24} />
+                      </span>
+                    </div>
+                    <h3 style={{ marginBottom:'0.5rem' }}>AI Judging in Progress</h3>
+                    <p style={{ color:'#9ca3af', fontSize:'0.9rem', marginBottom:'1.5rem' }}>
+                      GenLayer validators are independently evaluating the project URL.
+                      Consensus will be reached when enough nodes agree on the score (±3 pts).
+                    </p>
+
+                    <div className="judging-steps">
+                      {JUDGING_STEPS.map((step, idx) => {
+                        const stepNum = idx + 1;
+                        const isDone   = judgingStep > stepNum;
+                        const isActive = judgingStep === stepNum;
+                        const StepIconComponent = step.icon;
+                        return (
+                          <div key={idx}
+                            className={`judging-step ${isActive ? 'active' : isDone ? 'done' : ''}`}>
+                            <span className="step-icon">
+                              {isDone ? <CheckIcon size={16} /> : isActive ? <span className="pulse-dot" style={{ width: 8, height: 8 }} /> : <StepIconComponent size={16} />}
+                            </span>
+                            <span>{step.label}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
-                  <h3 style={{ marginBottom:'0.5rem' }}>AI Judging in Progress</h3>
-                  <p style={{ color:'#9ca3af', fontSize:'0.9rem', marginBottom:'1.5rem' }}>
-                    GenLayer validators are independently evaluating the project URL.
-                    Consensus will be reached when enough nodes agree on the score (±3 pts).
-                  </p>
-
-                  <div className="judging-steps">
-                    {JUDGING_STEPS.map((step, idx) => {
-                      const stepNum = idx + 1;
-                      const isDone   = judgingStep > stepNum;
-                      const isActive = judgingStep === stepNum;
-                      const StepIconComponent = step.icon;
-                      return (
-                        <div key={idx}
-                          className={`judging-step ${isActive ? 'active' : isDone ? 'done' : ''}`}>
-                          <span className="step-icon">
-                            {isDone ? <CheckIcon size={16} /> : isActive ? <span className="pulse-dot" style={{ width: 8, height: 8 }} /> : <StepIconComponent size={16} />}
-                          </span>
-                          <span>{step.label}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
                 </div>
-              </div>
-            )}
-
-            {/* Judge a project by PID */}
-            <div className="card" style={{ marginBottom:'1.5rem' }}>
-              <div className="card-header">
-                <div className="card-icon violet">
-                  <BrainIcon size={20} />
-                </div>
-                <div>
-                  <h3>Trigger AI Judge</h3>
-                  <div style={{ fontSize:'0.8rem', color:'#9ca3af', marginTop:'0.2rem' }}>Enter a project ID to evaluate</div>
-                </div>
-              </div>
-
-              <div style={{ display:'flex', gap:'0.75rem' }}>
-                <input className="form-input mono" placeholder="Project ID (e.g. 0)"
-                  style={{ flex:1 }} type="number" min="0"
-                  value={judgeTarget} onChange={e => setJudgeTarget(e.target.value)} />
-                <button id="judge-project-btn" className="btn btn-primary"
-                  disabled={isJudging || judgeTarget === '' || hackathonInfo?.finalized}
-                  onClick={() => judgeProject(parseInt(judgeTarget, 10))}>
-                  {isJudging ? '…' : '⚡ Judge'}
-                </button>
-              </div>
-              <p className="form-hint" style={{ marginTop:'0.6rem' }}>
-                <InfoIcon size={14} /> This triggers <span className="mono" style={{ color:'var(--c-violet)', fontSize:'0.78rem', fontWeight:600 }}>
-                judge_project(pid)</span> on-chain with full web scraping + LLM consensus.
-              </p>
-            </div>
-
-            {/* Finalize */}
-            <div className="card">
-              <div className="card-header">
-                <div className="card-icon emerald">
-                  <TrophyIcon size={20} />
-                </div>
-                <div>
-                  <h3>Finalize Hackathon</h3>
-                  <div style={{ fontSize:'0.8rem', color:'#9ca3af', marginTop:'0.2rem' }}>Lock in prize distribution</div>
-                </div>
-              </div>
-
-              <p style={{ color:'#9ca3af', fontSize:'0.9rem', marginBottom:'1.5rem', lineHeight: 1.6 }}>
-                Once all projects are judged, finalize the hackathon to lock in the prize
-                pool distribution (50/30/20). Winners can then claim their prizes.
-              </p>
-
-              {hackathonInfo?.finalized ? (
-                <div className="status-pill status-done" style={{ display:'inline-flex' }}>
-                  <CheckIcon size={14} /> Hackathon Finalized
-                </div>
-              ) : (
-                <button id="finalize-btn" className="btn btn-emerald btn-full"
-                  disabled={loading.finalize || !hackathonInfo?.name}
-                  onClick={finalizeHackathon}>
-                  {loading.finalize ? (
-                    <><span className="pulse-dot" style={{ background:'#030712' }} /> Finalizing…</>
-                  ) : (
-                    <>
-                      <LockIcon size={16} />
-                      Finalize & Lock Prizes
-                    </>
-                  )}
-                </button>
               )}
+
+              {/* Judge a project by selecting from dropdown */}
+              <div className="card" style={{ marginBottom:'1.5rem' }}>
+                <div className="card-header">
+                  <div className="card-icon violet">
+                    <BrainIcon size={20} />
+                  </div>
+                  <div>
+                    <h3>Trigger AI Judge</h3>
+                    <div style={{ fontSize:'0.8rem', color:'#9ca3af', marginTop:'0.2rem' }}>Select a submitted project to evaluate</div>
+                  </div>
+                </div>
+
+                {unjudgedProjects.length === 0 ? (
+                  <div style={{ color: '#9ca3af', fontSize: '0.9rem', padding: '0.5rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <CheckIcon size={16} style={{ color: 'var(--c-emerald)' }} style={{ flexShrink: 0, color: 'var(--c-emerald)' }} />
+                    All projects have been judged!
+                  </div>
+                ) : (
+                  <div style={{ display:'flex', gap:'0.75rem' }}>
+                    <select className="form-input" style={{ flex:1, background: '#111827', border: '1px solid var(--c-border)', color: '#f3f4f6', borderRadius: '8px', padding: '0.5rem' }}
+                      value={judgeTarget} onChange={e => setJudgeTarget(e.target.value)}>
+                      <option value="">-- Select a project --</option>
+                      {unjudgedProjects.map(p => (
+                        <option key={p.pid} value={p.pid}>
+                          ID {p.pid}: {p.project_name}
+                        </option>
+                      ))}
+                    </select>
+                    <button id="judge-project-btn" className="btn btn-primary"
+                      disabled={isJudging || judgeTarget === '' || hackathonInfo?.finalized}
+                      onClick={async () => {
+                        const ok = await judgeProject(parseInt(judgeTarget, 10));
+                        if (ok) {
+                          setJudgeTarget('');
+                          fetchProjects();
+                        }
+                      }}>
+                      {isJudging ? '…' : '⚡ Judge'}
+                    </button>
+                  </div>
+                )}
+                <p className="form-hint" style={{ marginTop:'0.6rem' }}>
+                  <InfoIcon size={14} /> This triggers <span className="mono" style={{ color:'var(--c-violet)', fontSize:'0.78rem', fontWeight:600 }}>
+                  judge_project(pid)</span> on-chain with full web scraping + LLM consensus.
+                </p>
+              </div>
+
+              {/* Finalize */}
+              <div className="card">
+                <div className="card-header">
+                  <div className="card-icon emerald">
+                    <TrophyIcon size={20} />
+                  </div>
+                  <div>
+                    <h3>Finalize Hackathon</h3>
+                    <div style={{ fontSize:'0.8rem', color:'#9ca3af', marginTop:'0.2rem' }}>Lock in prize distribution</div>
+                  </div>
+                </div>
+
+                <p style={{ color:'#9ca3af', fontSize:'0.9rem', marginBottom:'1.5rem', lineHeight: 1.6 }}>
+                  Once all projects are judged, finalize the hackathon to lock in the prize
+                  pool distribution (50/30/20). Winners can then claim their prizes.
+                </p>
+
+                {hackathonInfo?.finalized ? (
+                  <div className="status-pill status-done" style={{ display:'inline-flex' }}>
+                    <CheckIcon size={14} /> Hackathon Finalized
+                  </div>
+                ) : (
+                  <button id="finalize-btn" className="btn btn-emerald btn-full"
+                    disabled={loading.finalize || !hackathonInfo?.name}
+                    onClick={finalizeHackathon}>
+                    {loading.finalize ? (
+                      <><span className="pulse-dot" style={{ background:'#030712' }} /> Finalizing…</>
+                    ) : (
+                      <>
+                        <LockIcon size={16} />
+                        Finalize & Lock Prizes
+                      </>
+                    )}
+                  </button>
+                )}
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </div>
 
