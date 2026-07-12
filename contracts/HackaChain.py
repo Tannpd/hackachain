@@ -51,7 +51,7 @@ class Recipient:
 # ---------------------------------------------------------------------------
 
 MAX_AXIS_SCORE:         int = 30   # tech + ui + completeness each /30 → total /90
-SCORE_VARIANCE_TOLERANCE: int = 10 # validator accepts leader result if diff ≤ 10 pts
+SCORE_VARIANCE_TOLERANCE: int = 5  # validator accepts leader result if diff ≤ 5 pts
 MAX_SUBMISSIONS:        int = 50   # hard cap to stay within gas limits
 MAX_WINNERS:            int = 3    # podium places 1st / 2nd / 3rd
 
@@ -407,10 +407,10 @@ OUTPUT FORMAT (respond ONLY with this exact JSON, no markdown, no extra text):
               Accept if |leader_total − validator_total| ≤ SCORE_VARIANCE_TOLERANCE
               AND no single axis diverges by more than 3 pts.
             """
-            # ── Step A: Parse the leader's claimed result ──────────────
             try:
-                leader_data = json.loads(leader_result)
-            except (json.JSONDecodeError, ValueError):
+                leader_str = leader_result.calldata if hasattr(leader_result, 'calldata') else leader_result
+                leader_data = json.loads(leader_str)
+            except (json.JSONDecodeError, ValueError, TypeError):
                 return False   # Unparseable → reject
 
             # If leader reported a known error path, accept it
@@ -463,13 +463,13 @@ OUTPUT FORMAT (respond ONLY with this exact JSON, no markdown, no extra text):
             score_delta = abs(leader_total - val_total)
 
             # ── Step E: Consensus decision ─────────────────────────────
-            # Per-axis guard: reject if any axis diverges by more than 5 pts
+            # Per-axis guard: reject if any axis diverges by more than 3 pts
             # (tightened to prevent score-swapping attacks and ensure scorecard agreement)
-            if abs(leader_tech - val_tech) > 5:
+            if abs(leader_tech - val_tech) > 3:
                 return False
-            if abs(leader_ui - val_ui) > 5:
+            if abs(leader_ui - val_ui) > 3:
                 return False
-            if abs(leader_comp - val_comp) > 5:
+            if abs(leader_comp - val_comp) > 3:
                 return False
 
             # Accept if total difference ≤ tolerance
