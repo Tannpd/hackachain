@@ -6,7 +6,7 @@
   "installCommand": "npm install",
   "framework": "vite",
   "env": {
-    "VITE_CONTRACT_ADDRESS": "0xa277F24f9D5c12Fe321eB654FF1273379a57B58f",
+    "VITE_CONTRACT_ADDRESS": "0x7140A264acD710F9B07D5b20496ee52dDaE8D71a",
     "VITE_GENLAYER_RPC": "https://studio.genlayer.com/api",
     "VITE_GENLAYER_NETWORK": "studionet"
   }

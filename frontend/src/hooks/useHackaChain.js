@@ -5,7 +5,7 @@
  *
  * SDK: genlayer-js v1.1.8
  * Chain: studionet (RPC: https://studio.genlayer.com/api, ChainID: 61999)
- * Contract: 0xa277F24f9D5c12Fe321eB654FF1273379a57B58f
+ * Contract: 0x7140A264acD710F9B07D5b20496ee52dDaE8D71a
  */
 
 import { useState, useCallback, useEffect } from 'react';
