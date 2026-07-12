@@ -69,23 +69,29 @@ export function useHackaChain() {
 
       // Try MetaMask first
       if (typeof window !== 'undefined' && window.ethereum) {
-        const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
-        const addr = accounts[0];
+        try {
+          const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+          const addr = accounts[0];
 
-        // Ensure wallet is switched to the correct GenLayer network
-        const client = getWriteClient(addr);
-        await client.connect();
+          // Ensure wallet is switched to the correct GenLayer network
+          const client = getWriteClient(addr);
+          await client.connect();
 
-        setAccount(addr);
-        setGlAccount(addr);
-        toast('success', `Wallet connected: ${addr.slice(0,8)}…`);
-      } else {
-        // Fallback: generate a fresh ephemeral account for demo
-        const acct = createAccount();
-        setAccount(acct.address);
-        setGlAccount(acct);
-        toast('info', `Demo wallet: ${acct.address.slice(0,8)}… — fund it on StudioNet faucet to transact.`);
+          setAccount(addr);
+          setGlAccount(addr);
+          toast('success', `Wallet connected: ${addr.slice(0,8)}…`);
+          return; // Success
+        } catch (walletErr) {
+          console.warn('MetaMask connect failed, falling back to demo wallet:', walletErr);
+          toast('warning', `MetaMask Snap connection not supported or rejected. Falling back to Demo Wallet.`);
+        }
       }
+
+      // Fallback: generate a fresh ephemeral account for demo
+      const acct = createAccount();
+      setAccount(acct.address);
+      setGlAccount(acct);
+      toast('info', `Demo wallet: ${acct.address.slice(0,8)}… — fund it on StudioNet faucet to transact.`);
     } catch (e) {
       toast('error', `Wallet connection failed: ${e.message}`);
     } finally {
