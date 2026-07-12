@@ -606,6 +606,11 @@ def test_get_organizer():
     c = fresh_contract()
     assert c.get_organizer() == "0xORGANIZER000"
 
+def test_get_deadlines():
+    c = fresh_contract(); setup(c)
+    assert c.get_submission_deadline() > int(time.time())
+    assert c.get_judging_deadline() > c.get_submission_deadline()
+
 def test_get_prize_claim_zero_for_unknown():
     c = fresh_contract()
     assert c.get_prize_claim("0xRANDOM") == 0
@@ -618,7 +623,7 @@ def test_get_score_unjudged():
     assert sc["tech_score"] == -1
 
 for fn in [test_get_leaderboard_sorted, test_get_leaderboard_empty,
-           test_get_organizer, test_get_prize_claim_zero_for_unknown,
+           test_get_organizer, test_get_deadlines, test_get_prize_claim_zero_for_unknown,
            test_get_score_unjudged]:
     run_test(fn.__name__, fn)
 

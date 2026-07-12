@@ -28,6 +28,8 @@ export default function SubmitProject({ useHook }) {
   const [submitted, setSubmitted] = useState(false);
   const [submittedPid, setSubmittedPid] = useState(null);
 
+  const isSubmissionPassed = hackathonInfo?.submissionDeadline && (Date.now() / 1000 >= hackathonInfo.submissionDeadline);
+
   // Organizer setup form state
   const [orgName,  setOrgName]  = useState('');
   const [orgPrize, setOrgPrize] = useState('1000000');
@@ -205,9 +207,14 @@ export default function SubmitProject({ useHook }) {
 
                   <button id="submit-project-btn" type="submit"
                     className="btn btn-primary btn-full"
-                    disabled={loading.submit || hackathonInfo?.finalized}>
+                    disabled={loading.submit || hackathonInfo?.finalized || isSubmissionPassed}>
                     {loading.submit ? (
                       <><span className="pulse-dot" style={{ background:'#030712' }} />  Submitting…</>
+                    ) : isSubmissionPassed ? (
+                      <>
+                        <LockIcon size={16} />
+                        Submission Deadline Passed
+                      </>
                     ) : (
                       <>
                         <RocketIcon size={16} />
@@ -273,6 +280,28 @@ export default function SubmitProject({ useHook }) {
                       <span style={{ fontFamily:'var(--font-mono)', fontWeight:800, color, fontSize:'1rem' }}>{pct}</span>
                     </div>
                   ))}
+                </div>
+
+                {/* Deadlines info */}
+                <div style={{ marginTop:'1.5rem' }}>
+                  <div style={{ fontSize:'0.8rem', color:'#9ca3af', fontWeight:700, textTransform:'uppercase',
+                    letterSpacing:'0.08em', marginBottom:'1rem', borderBottom:'1px solid var(--c-border)', paddingBottom:'0.5rem' }}>Deadlines</div>
+                  {[
+                    { label:'Submission Deadline', time: hackathonInfo.submissionDeadline },
+                    { label:'Judging Deadline', time: hackathonInfo.judgingDeadline },
+                  ].map(({ label, time }) => {
+                    const formatted = time ? new Date(time * 1000).toLocaleString() : 'Not set';
+                    const isPassed = time && (Date.now() / 1000 >= time);
+                    return (
+                      <div key={label} style={{ display:'flex', justifyContent:'space-between', alignItems:'center',
+                        padding:'0.6rem 0', borderBottom:'1px solid rgba(255,255,255,0.03)' }}>
+                        <span style={{ fontSize:'0.9rem', fontWeight: 600, color: '#f3f4f6' }}>{label}</span>
+                        <span style={{ fontFamily:'var(--font-mono)', fontSize:'0.85rem', fontWeight: 700, color: isPassed ? 'var(--c-rose)' : 'var(--c-emerald)' }}>
+                          {formatted} {isPassed && '(Passed)'}
+                        </span>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             ) : showSetup ? (

@@ -130,19 +130,23 @@ export function useHackaChain() {
   const fetchHackathonInfo = useCallback(async () => {
     setLoadingKey('info', true);
     try {
-      const [name, pool, finalized, count, organizer] = await Promise.all([
+      const [name, pool, finalized, count, organizer, submissionDeadline, judgingDeadline] = await Promise.all([
         readContract('get_hackathon_name'),
         readContract('get_prize_pool'),
         readContract('get_is_finalized'),
         readContract('get_submission_count'),
         readContract('get_organizer'),
+        readContract('get_submission_deadline'),
+        readContract('get_judging_deadline'),
       ]);
       setHackathonInfo({
-        name:      String(name || ''),
-        pool:      Number(pool || 0),
-        finalized: Boolean(finalized),
-        count:     Number(count || 0),
-        organizer: String(organizer || '').toLowerCase(),
+        name:               String(name || ''),
+        pool:               Number(pool || 0),
+        finalized:          Boolean(finalized),
+        count:              Number(count || 0),
+        organizer:          String(organizer || '').toLowerCase(),
+        submissionDeadline: Number(submissionDeadline || 0),
+        judgingDeadline:    Number(judgingDeadline || 0),
       });
     } catch (e) {
       console.error('fetchHackathonInfo:', e);

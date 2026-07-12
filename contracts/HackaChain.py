@@ -701,3 +701,13 @@ OUTPUT FORMAT (respond ONLY with this exact JSON, no markdown, no extra text):
     def get_organizer(self) -> str:
         """Returns the organizer address as a string."""
         return str(self.organizer)
+
+    @gl.public.view
+    def get_submission_deadline(self) -> int:
+        """Returns the submission deadline as a UNIX timestamp."""
+        return int(self.submission_deadline)
+
+    @gl.public.view
+    def get_judging_deadline(self) -> int:
+        """Returns the judging deadline as a UNIX timestamp."""
+        return int(self.judging_deadline)
