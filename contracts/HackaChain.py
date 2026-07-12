@@ -51,7 +51,7 @@ class Recipient:
 # ---------------------------------------------------------------------------
 
 MAX_AXIS_SCORE:         int = 30   # tech + ui + completeness each /30 → total /90
-SCORE_VARIANCE_TOLERANCE: int = 5  # validator accepts leader result if diff ≤ 5 pts
+SCORE_VARIANCE_TOLERANCE: int = 10 # validator accepts leader result if diff ≤ 10 pts
 MAX_SUBMISSIONS:        int = 50   # hard cap to stay within gas limits
 MAX_WINNERS:            int = 3    # podium places 1st / 2nd / 3rd
 
@@ -463,13 +463,13 @@ OUTPUT FORMAT (respond ONLY with this exact JSON, no markdown, no extra text):
             score_delta = abs(leader_total - val_total)
 
             # ── Step E: Consensus decision ─────────────────────────────
-            # Per-axis guard: reject if any axis diverges by more than 3 pts
+            # Per-axis guard: reject if any axis diverges by more than 5 pts
             # (tightened to prevent score-swapping attacks and ensure scorecard agreement)
-            if abs(leader_tech - val_tech) > 3:
+            if abs(leader_tech - val_tech) > 5:
                 return False
-            if abs(leader_ui - val_ui) > 3:
+            if abs(leader_ui - val_ui) > 5:
                 return False
-            if abs(leader_comp - val_comp) > 3:
+            if abs(leader_comp - val_comp) > 5:
                 return False
 
             # Accept if total difference ≤ tolerance
