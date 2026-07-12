@@ -33,7 +33,11 @@
 # =============================================================================
 
 from genlayer import *   # Rule 13: ALWAYS use this form. Never import genlayer as gl.
-from genlayer import UserError
+import builtins
+UserError = getattr(builtins, 'UserError', None)
+if UserError is None:
+    class UserError(Exception):
+        pass
 import json
 import time
 
